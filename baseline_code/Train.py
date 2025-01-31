@@ -13,6 +13,13 @@ from model.Networks import unet
 import random
 from tqdm import tqdm
 
+if torch.backends.mps.is_available():
+    device = torch.device("mps")
+elif torch.cuda.is_available():
+    device = torch.device("cuda")
+else:
+    device = torch.device("cpu")
+
 name_classes = np.array(['non-fire','fire'], dtype=str)
 epsilon = 1e-14
 
@@ -105,7 +112,7 @@ def main():
         model = unet(n_classes=args.num_classes, n_channels=7)
 
     model.train()
-    model = model.cuda()
+    model = model.to(device)
     
     train_loader = data.DataLoader(
                     Sen2FireDataSet(args.data_dir, args.train_list, max_iters=args.num_steps_stop*args.batch_size,
@@ -131,7 +138,7 @@ def main():
     F1_best = 0.    
     #L_seg = nn.CrossEntropyLoss()
     class_weights = [1, args.weight]
-    L_seg = nn.CrossEntropyLoss(weight=torch.Tensor(class_weights).cuda())
+    L_seg = nn.CrossEntropyLoss(weight=torch.Tensor(class_weights).to(device))
     for batch_index, train_data in enumerate(train_loader):
         if batch_index==args.num_steps_stop:
             break
@@ -141,8 +148,8 @@ def main():
         optimizer.zero_grad()
         
         patches, labels, _, _ = train_data
-        patches = patches.cuda()      
-        labels = labels.cuda().long()
+        patches = patches.to(device)      
+        labels = labels.to(device).long()
 
         pred = model(patches)           
         pred_interp = interp(pred)
@@ -191,7 +198,7 @@ def main():
             for _, batch in enumerate(tbar):  
                 image, label,_,_ = batch
                 label = label.squeeze().numpy()
-                image = image.float().cuda()
+                image = image.float().to(device)
                 
                 with torch.no_grad():
                     pred = model(image)
@@ -255,7 +262,7 @@ def main():
     for _, batch in enumerate(tbar):  
         image, label,_,_ = batch
         label = label.squeeze().numpy()
-        image = image.float().cuda()
+        image = image.float().to(device)
         
         with torch.no_grad():
             pred = model(image)

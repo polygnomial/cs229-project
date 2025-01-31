@@ -12,6 +12,13 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 
+if torch.backends.mps.is_available():
+    device = torch.device("mps")
+elif torch.cuda.is_available():
+    device = torch.device("cuda")
+else:
+    device = torch.device("cpu")
+
 name_classes = np.array(['non-fire','fire'], dtype=str)
 epsilon = 1e-14
 
@@ -89,7 +96,7 @@ def main():
     saved_state_dict = torch.load(args.restore_from)  
     model.load_state_dict(saved_state_dict)
     model.eval()
-    model = model.cuda()
+    model = model.to(device)
     
     test_loader = data.DataLoader(
                     Sen2FireDataSet(args.data_dir, args.test_list,mode=args.mode),
@@ -101,7 +108,7 @@ def main():
     tbar = tqdm(test_loader)
     for _, batch in enumerate(tbar):  
         image, _,_,name = batch        
-        image = image.float().cuda()
+        image = image.float().to(device)
         
         with torch.no_grad():
             pred = model(image)
