@@ -21,7 +21,7 @@ def get_arguments():
     parser = argparse.ArgumentParser(description="Train XGBoost baseline on Sen2Fire dataset with vegetation indices.")
     
     # Data and dataset configuration
-    parser.add_argument("--data_dir", type=str, default='/Users/d5826/desktop/milestone/Sen2Fire/',
+    parser.add_argument("--data_dir", type=str, default='/Users/d5826/desktop/milestone/Sen2Fire/', #Note chaning the path to your local path
                         help="Path to the Sen2Fire dataset directory.")
     parser.add_argument("--train_list", type=str, default='./dataset/train.txt',
                         help="Path to the training list file.")
