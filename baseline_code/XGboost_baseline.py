@@ -11,6 +11,10 @@ import seaborn as sns
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, confusion_matrix
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import GridSearchCV
+from sklearn.decomposition import PCA
+from model.Autoencoder import Autoencoder
+import torch
+from torch import nn
 
 # Define class labels and a small constant to avoid division by zero
 name_classes = np.array(['non-fire', 'fire'], dtype=str)
@@ -33,6 +37,8 @@ def get_arguments():
                         help="Number of classes (non-fire and fire).")
     parser.add_argument("--mode", type=int, default=10,
                         help="Input mode (e.g., 10 for 'rgb_swir_nbr_ndvi').")
+    parser.add_argument("--format", type=str, default='xgboost_direct',
+                        help="input transform type.")     
     
     # XGBoost hyperparameters (initial/default values)
     parser.add_argument("--max_depth", type=int, default=6, help="Maximum tree depth for XGBoost.")
@@ -77,6 +83,13 @@ def sample_pixels(X, y, num_samples):
     return X, y
 
 def main():
+    if torch.backends.mps.is_available():
+        device = torch.device("mps")
+    elif torch.cuda.is_available():
+        device = torch.device("cuda")
+    else:
+        device = torch.device("cpu")
+
     args = get_arguments()
     
     # Ensure output directory exists
@@ -112,6 +125,37 @@ def main():
     # Normalize features
     scaler = StandardScaler()
     X_train = scaler.fit_transform(X_train)
+
+    # PCA
+    if args.format == 'PCA':
+        N_DIM = 100 # tuning hyperparameter
+        pca = PCA(n_components=N_DIM)
+        X_train = pca.fit_transform(X_train)
+    elif args.format == 'Autoencoder':
+        N_DIM = 100
+
+        # Train autoencoder
+        autoencoder = Autoencoder(input_dim=X_train[1], output_dim=N_DIM).to(device)
+        optimizer = torch.optim.Adam(autoencoder.parameters())
+        criterion = nn.MSELoss()
+        num_epochs = 100
+
+        for epoch in range(num_epochs):
+            output = autoencoder(X_train)
+            loss = criterion(output, X_train)
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            if epoch % 10 == 0:
+                print(f"Epoch {epoch}, Loss: {loss.item():.4f}")
+
+        X_train = autoencoder.encode(X_train)
+    elif args.format == 'CNN':
+        ### two ideas: we could build a simple CNN ourselves,
+        ### or use a pretrained model
+        pass
     
     # Compute class imbalance weight
     num_fire = np.sum(y_train == 1)
@@ -152,6 +196,10 @@ def main():
     X_val = np.concatenate(X_val_list, axis=0)
     y_val = np.concatenate(y_val_list, axis=0)
     X_val = scaler.transform(X_val)
+    if args.format == 'PCA':
+        X_val = pca.transform(X_val)
+    if args.format == 'Autoencoder':
+        X_val = autoencoder.encode(X_val)
     
     dval = xgb.DMatrix(X_val, label=y_val)
     y_pred_prob = bst.predict(dval)

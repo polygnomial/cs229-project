@@ -1,4 +1,4 @@
 tqdm
-pytorch
-torchvision
+scikit-learn
+xgboost
 numpy
