@@ -19,10 +19,10 @@ import sys
 
 
 
-if torch.backends.mps.is_available():
-    device = torch.device("mps")
-elif torch.cuda.is_available():
+if torch.cuda.is_available():
     device = torch.device("cuda")
+# elif torch.backends.mps.is_available():
+#     device = torch.device("mps")
 else:
     device = torch.device("cpu")
 
@@ -115,8 +115,8 @@ def main():
     model = smp.Unet(
         encoder_name="resnet50",  
         encoder_weights="imagenet",  # Pretrained on ImageNet
-        classes=1, 
-        activation="sigmoid"  
+        in_channels=3, 
+        classes=2
     )
 
     model = model.to(device)
@@ -146,6 +146,9 @@ def main():
     hist = np.zeros((args.num_steps_stop,4))
     F1_best = 0.    
 
+    class_weights = [1, args.weight]
+    L_seg = nn.CrossEntropyLoss(weight=torch.Tensor(class_weights).to(device))
+    print(L_seg)
 
     L_dice = smp.losses.DiceLoss(mode="binary")  # Dice Loss for segmentation
     L_bce = nn.BCEWithLogitsLoss()  # BCE Loss for stable training
@@ -167,7 +170,7 @@ def main():
 
 
     for batch_index, train_data in enumerate(train_loader):
-        print(batch_index)
+        # print(batch_index)
         if batch_index==args.num_steps_stop:
             break
         tem_time = time.time()
@@ -178,13 +181,21 @@ def main():
         patches, labels, _, _ = train_data
         patches = patches.to(device)      
         labels = labels.to(device).long()
+        # print(labels.shape)
         
         pred = model(patches)      
         pred_interp = interp(pred)
+        # print(pred_interp.shape)
+        # print(pred_interp)
+
               
         # Changed segmentation loss to dice and bce
-        L_seg_value = L_seg_value = 0.5 * L_dice(pred_interp, labels) + 0.5 * L_bce(pred_interp, labels)
+        # print(L_seg(pred_interp, labels).type)
+        L_seg_value = L_seg(pred_interp, labels)
+        # print(L_seg_value)
+        # L_seg_value = 0.5 * L_dice(pred_interp, labels) + 0.5 * L_bce(pred_interp.squeeze(1), labels)
         _, predict_labels = torch.max(pred_interp, 1)
+        # print(predict_labels)
         lbl_pred = predict_labels.detach().cpu().numpy()
         lbl_true = labels.detach().cpu().numpy()
         metrics_batch = []
@@ -209,7 +220,7 @@ def main():
             f.flush() 
         
         ### Unfreeze 
-        if batch_index == args.freeze_epochs:
+        if batch_index == args.unfreeze_step:
             print("\nUnfreezing encoder for fine-tuning...\n")
             for param in model.encoder.layer4.parameters():  # Last ResNet block
                 param.requires_grad = True
