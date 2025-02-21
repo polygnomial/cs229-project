@@ -177,13 +177,13 @@ def main():
         
         patches, labels, _, _ = train_data
         patches = patches.to(device)      
-        labels = labels.to(device).long()
+        labels = labels.to(device).float()
         
         pred = model(patches)      
         pred_interp = interp(pred)
               
         # Changed segmentation loss to dice and bce
-        L_seg_value = L_seg_value = 0.5 * L_dice(pred_interp, labels) + 0.5 * L_bce(pred_interp, labels)
+        L_seg_value = L_seg_value = 0.5 * L_dice(pred_interp, labels) + 0.5 * L_bce(pred_interp.squeeze(1), labels) 
         _, predict_labels = torch.max(pred_interp, 1)
         lbl_pred = predict_labels.detach().cpu().numpy()
         lbl_true = labels.detach().cpu().numpy()
