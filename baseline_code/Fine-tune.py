@@ -42,6 +42,8 @@ def get_arguments():
     parser = argparse.ArgumentParser()
     
     #dataset
+    parser.add_argument("--freeze_epochs", type=int, default=3000,   
+                    help="Number of steps (or epochs) before unfreezing encoder.")
     parser.add_argument("--data_dir", type=str, default='/Users/hercysh/Desktop/Stanford/Year 1/CS229/cs229 final project/cs229-project/Sen2Fire',
                         help="dataset path.")
     parser.add_argument("--train_list", type=str, default='./dataset/train.txt',
