@@ -281,7 +281,7 @@ def main():
                     f.write('===>' + name_classes[i] + ' F1: %.2f\n'%(F1[i] * 100))   
                 
             mF1 = np.mean(F1)   
-            mIoU = np.mean( mIoU)           
+            mIoU = np.mean(IoU)           
             print('===> mIoU: %.2f mean F1: %.2f OA: %.2f'%(mIoU*100,mF1*100,OA*100))
             f.write('===> mIoU: %.2f mean F1: %.2f OA: %.2f\n'%(mIoU*100,mF1*100,OA*100))
                 
@@ -345,7 +345,7 @@ def main():
             f.write('===>' + name_classes[i] + ' F1: %.2f\n'%(F1[i] * 100))   
         
     mF1 = np.mean(F1)   
-    mIoU = np.mean(mIoU)           
+    mIoU = np.mean(IoU)           
     print('===> mIoU: %.2f mean F1: %.2f OA: %.2f'%(mIoU*100,mF1*100,OA*100))
     f.write('===> mIoU: %.2f mean F1: %.2f OA: %.2f\n'%(mIoU*100,mF1*100,OA*100))        
     f.close()
