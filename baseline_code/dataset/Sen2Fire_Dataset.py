@@ -1,7 +1,10 @@
 import os.path as osp
 import numpy as np
 from torch.utils import data
+import torch
 from tqdm import tqdm
+import sys
+
 
 modename = ['all_bands',                        #0
             'all_bands_aerosol',                #1
@@ -70,11 +73,12 @@ def create_rgb_swir_nbr_ndvi_aerosol_composite(patch_data):
     return rgb_swir_nbr_ndvi_aerosol_composite
 
 class Sen2FireDataSet(data.Dataset):
-    def __init__(self, root, list_path, max_iters=None, mode=1):
+    def __init__(self, root, list_path, max_iters=None, mode=1, transform=None):
         self.root = root
         self.list_path = list_path
         self.mode = mode
         self.img_ids = [i_id.strip() for i_id in open(list_path)]
+        self.transform = transform
         
         if not max_iters==None:
             n_repeat = int(np.ceil(max_iters / len(self.img_ids)))
@@ -126,6 +130,9 @@ class Sen2FireDataSet(data.Dataset):
                 data = create_rgb_swir_nbr_ndvi_composite(data)
             elif self.mode == 11:      
                 data = create_rgb_swir_nbr_ndvi_aerosol_composite(data)
+        if self.transform:
+            data = torch.from_numpy(data).float()
+            data = self.transform(data)
         return data, label, np.array(data.shape), name
     
     def compute_max_values(self):
@@ -144,7 +151,7 @@ class Sen2FireDataSet(data.Dataset):
     
 if __name__ == '__main__':
         
-    root_path = "/mimer/NOBACKUP/groups/alvis_cvl/yonghao/Data/Sen2Fire/"
+    root_path = "../../Sen2Fire"
     list_file_path = "train.txt"
     train_dataset = Sen2FireDataSet(root=root_path, list_path=list_file_path, max_iters=None, mode=1)
     max_values = train_dataset.compute_max_values()
@@ -152,3 +159,8 @@ if __name__ == '__main__':
     # Print the computed max values
     print("Max Values:")
     print(max_values)
+
+    for train_data in train_dataset:
+        data, label, shape, name = train_data
+        print(data.shape, label.shape, shape)
+        sys.exit()

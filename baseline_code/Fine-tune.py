@@ -55,7 +55,7 @@ def get_arguments():
     parser.add_argument("--num_classes", type=int, default=2,
                         help="number of classes.")   
     # for this fine-tuning, use mode 2: RGB for now      
-    parser.add_argument("--mode", type=int, default=2,
+    parser.add_argument("--mode", type=int, default=4,
                         help="input type (0-all_bands, 1-all_bands_aerosol,...).")           
 
     #network
@@ -74,7 +74,7 @@ def get_arguments():
     parser.add_argument("--weight", type=float, default=10,
                         help="ce weight.")
     # for fine-tuning, unfreeze step
-    parser.add_argument("--unfreeze_step", type=int, default=3000,
+    parser.add_argument("--unfreeze_step", type=int, default=2000,
                         help="Number of steps before unfreezing U Net Encoder weights.")
 
     #result
@@ -123,22 +123,27 @@ def main():
 
     model = model.to(device)
     print(model)
+
+    # Resnet expects a particular size
+    transform = transforms.Compose([
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    ])
     
     train_loader = data.DataLoader(
                     Sen2FireDataSet(args.data_dir, args.train_list, max_iters=args.num_steps_stop*args.batch_size,
-                    mode=args.mode),
+                    mode=args.mode, transform=transform),
                     batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, pin_memory=True)
 
     val_loader = data.DataLoader(
-                    Sen2FireDataSet(args.data_dir, args.val_list,mode=args.mode),
+                    Sen2FireDataSet(args.data_dir, args.val_list,mode=args.mode, transform=transform),
                     batch_size=1, shuffle=False, num_workers=args.num_workers, pin_memory=True)
     
     test_loader = data.DataLoader(
-                    Sen2FireDataSet(args.data_dir, args.test_list,mode=args.mode),
+                    Sen2FireDataSet(args.data_dir, args.test_list,mode=args.mode, transform=transform),
                     batch_size=1, shuffle=False, num_workers=args.num_workers, pin_memory=True)
     
-    optimizer = optim.Adam(model.parameters(),
-                        lr=args.learning_rate, weight_decay=args.weight_decay)
+    # optimizer = optim.Adam(model.parameters(),
+    #                     lr=args.learning_rate, weight_decay=args.weight_decay)
     
     # interpolation for the probability maps and labels 
     interp = nn.Upsample(size=(input_size_train[1], input_size_train[0]), mode='bilinear')
@@ -150,7 +155,7 @@ def main():
 
     class_weights = [1, args.weight]
     L_seg = nn.CrossEntropyLoss(weight=torch.Tensor(class_weights).to(device))
-    print(L_seg)
+    # print(L_seg)
 
     L_dice = smp.losses.DiceLoss(mode="binary")  # Dice Loss for segmentation
     L_bce = nn.BCEWithLogitsLoss()  # BCE Loss for stable training
@@ -159,20 +164,14 @@ def main():
     for param in model.encoder.parameters():
         param.requires_grad = False
 
-    optimizer = torch.optim.Adam([
+    optimizer = optim.Adam([
         {"params": model.encoder.parameters(), "lr": 1e-5},  # Lower LR for encoder
         {"params": model.decoder.parameters(), "lr": 1e-4}   # Higher LR for decoder
-    ])
-
-    # transform = transforms.Compose([
-    # transforms.Resize((512, 512)),
-    # transforms.ToTensor(),
-    # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    # ])
+    ], weight_decay=args.weight_decay)
 
 
     for batch_index, train_data in enumerate(train_loader):
-        # print(batch_index)
+        print(batch_index)
         if batch_index==args.num_steps_stop:
             break
         tem_time = time.time()
@@ -184,17 +183,20 @@ def main():
         patches = patches.to(device)      
         labels = labels.to(device).long()
         # print(labels.shape)
+        # print(patches.shape)
         
         pred = model(patches)      
         pred_interp = interp(pred)
         # print(pred_interp.shape)
         # print(pred_interp)
 
+        # sys.exit()
+
               
         # Changed segmentation loss to dice and bce
         # print(L_seg(pred_interp, labels).type)
         L_seg_value = L_seg(pred_interp, labels)
-        # print(L_seg_value)
+        print(L_seg_value)
         # L_seg_value = 0.5 * L_dice(pred_interp, labels) + 0.5 * L_bce(pred_interp.squeeze(1), labels)
         _, predict_labels = torch.max(pred_interp, 1)
         # print(predict_labels)
