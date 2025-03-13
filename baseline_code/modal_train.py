@@ -1,14 +1,12 @@
 import modal
-import argparse 
-
+import argparse
 
 app = modal.App("train-sen2fire-xgboost-model")
 
-# Build a custom image that installs requirements.txt and adds our baseline_code dir
 image = (
     modal.Image.debian_slim()
     .pip_install_from_requirements("requirements.txt")
-    .add_local_dir(".", remote_path="/code")
+    .add_local_dir(".", remote_path="/root")
 )
 
 def get_arguments(args=None):
@@ -54,15 +52,9 @@ def get_arguments(args=None):
     volumes={"/data": modal.Volume.from_name("dataset-volume")}
 )
 def train_model(*arglist):
-    # all code is available in the code directory
-    import sys
-    if "/code" not in sys.path:
-        sys.path.insert(0, "/code")
-
     args = get_arguments(args=arglist)
-
-    import XGboost_baseline as train_model
-    train_model.main(args)
+    import XGboost_baseline as train_model_impl
+    train_model_impl.main(args)
 
 if __name__ == "__main__":
     with app.run():
