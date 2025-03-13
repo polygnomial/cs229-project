@@ -20,42 +20,7 @@ from torch import nn
 name_classes = np.array(['non-fire', 'fire'], dtype=str)
 epsilon = 1e-14
 
-def get_arguments():
-    """Parse command-line arguments."""
-    parser = argparse.ArgumentParser(description="Train XGBoost baseline on Sen2Fire dataset with vegetation indices.")
-    
-    # Data and dataset configuration
-    parser.add_argument("--data_dir", type=str, default='/Users/d5826/desktop/milestone/Sen2Fire/', #Note chaning the path to your local path
-                        help="Path to the Sen2Fire dataset directory.")
-    parser.add_argument("--train_list", type=str, default='./dataset/train.txt',
-                        help="Path to the training list file.")
-    parser.add_argument("--val_list", type=str, default='./dataset/val.txt',
-                        help="Path to the validation list file.")
-    parser.add_argument("--test_list", type=str, default='./dataset/test.txt',
-                        help="Path to the test list file (not used in training).")
-    parser.add_argument("--num_classes", type=int, default=2,
-                        help="Number of classes (non-fire and fire).")
-    parser.add_argument("--mode", type=int, default=10,
-                        help="Input mode (e.g., 10 for 'rgb_swir_nbr_ndvi').")
-    parser.add_argument("--format", type=str, default='xgboost_direct',
-                        help="input transform type.")     
-    
-    # XGBoost hyperparameters (initial/default values)
-    parser.add_argument("--max_depth", type=int, default=6, help="Maximum tree depth for XGBoost.")
-    parser.add_argument("--n_estimators", type=int, default=100, help="Number of boosting rounds (trees).")
-    parser.add_argument("--learning_rate", type=float, default=0.1, help="Learning rate for XGBoost.")
-    
-    # Pixel sampling configuration
-    parser.add_argument("--sample_pixels", type=int, default=1000,
-                        help="Number of random pixels per patch to use for training.")
-    
-    # Model saving and output paths
-    parser.add_argument("--model_save_path", type=str, default='./xgboost_model.json',
-                        help="Path to save the trained XGBoost model.")
-    parser.add_argument("--snapshot_dir", type=str, default='./Map/',
-                        help="Directory to save detection results and plots.")
-    
-    return parser.parse_args()
+
 
 def extract_features_labels(image, label):
     """Extract pixel-wise features and labels from a patch."""
@@ -82,15 +47,13 @@ def sample_pixels(X, y, num_samples):
         return X[indices], y[indices]
     return X, y
 
-def main():
+def main(args):
     if torch.backends.mps.is_available():
         device = torch.device("mps")
     elif torch.cuda.is_available():
         device = torch.device("cuda")
     else:
         device = torch.device("cpu")
-
-    args = get_arguments()
     
     # Ensure output directory exists
     os.makedirs(args.snapshot_dir, exist_ok=True)
