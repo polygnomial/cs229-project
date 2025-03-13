@@ -209,7 +209,7 @@ def main():
             {"params": model.custom_layers.parameters(), "lr": args.learning_rate}
         ], weight_decay=args.weight_decay)
     elif args.model_type == 'segformer':
-        # 对于 segformer 模型，初始化优化器
+        # For segformer, inilziation 
         optimizer = optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
     else:
         # For pretrained models, freeze encoder
