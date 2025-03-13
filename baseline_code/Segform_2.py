@@ -104,11 +104,25 @@ modename = ['all_bands',                        #0
             'rgb_swir_nbr_ndvi',                #10
             'rgb_swir_nbr_ndvi_aerosol',]       #11
 
+mode_channel_counts = [12, 13, 3, 4, 3, 4, 3, 4, 3, 4, 6, 7]
+
 # From feedback: Model selection method
 def get_model(args):
     # this is the huggingface segformer
+    print(f"num channels: {mode_channel_counts[args.mode]}")
     if args.model_type == 'segformer':
-        model = SegformerForSemanticSegmentation.from_pretrained("nvidia/mit-b0")
+        model = SegformerForSemanticSegmentation.from_pretrained(
+            "nvidia/mit-b0", 
+            num_channels=mode_channel_counts[args.mode], 
+            num_labels=args.num_classes,
+            ignore_mismatched_sizes=True
+        )
+        # # fix the dimension mismatch 
+        # dims_to_add = mode_channel_counts[args.mode] - 3
+        # model.segformer.encoder.weight = nn.Parameter(
+        #     torch.cat((model.segformer.encoder.weight, torch.randn(1, dims_to_add, 256)), 1)
+        # )
+        
         return model
     else:
         # this is a combined U-Net structure but with segformer encoder
@@ -116,7 +130,7 @@ def get_model(args):
             return smp.Unet(
                 encoder_name=args.encoder_name,
                 encoder_weights="imagenet",
-                in_channels=3,
+                in_channels=mode_channel_counts[args.mode],
                 classes=args.num_classes
             )
         # Use models from smp library
@@ -124,33 +138,32 @@ def get_model(args):
             return smp.Unet(
                 encoder_name=args.encoder_name,
                 encoder_weights="imagenet",
-                in_channels=3,
+                in_channels=int(mode_channel_counts[args.mode]),
                 classes=args.num_classes
             )
         elif args.model_type == 'deeplabv3plus':
             return smp.DeepLabV3Plus(
                 encoder_name=args.encoder_name,
                 encoder_weights="imagenet",
-                in_channels=3,
+                in_channels=mode_channel_counts[args.mode],
                 classes=args.num_classes
             )
         elif args.model_type == 'pspnet':
             return smp.PSPNet(
                 encoder_name=args.encoder_name,
                 encoder_weights="imagenet",
-                in_channels=3,
+                in_channels=mode_channel_counts[args.mode],
                 classes=args.num_classes
             )
         elif args.model_type == 'fpn':
             return smp.FPN(
                 encoder_name=args.encoder_name,
                 encoder_weights="imagenet",
-                in_channels=3,
+                in_channels=mode_channel_counts[args.mode],
                 classes=args.num_classes
             )
 
-def main():
-    args = get_arguments()
+def main(args):
     snapshot_dir = args.snapshot_dir+'model_'+args.model_type+'_encoder_'+'_input_'+modename[args.mode]+'/weight_'+str(args.weight)+'_time'+time.strftime('%m%d_%H%M', time.localtime(time.time()))+'/'
     if not os.path.exists(snapshot_dir):
         os.makedirs(snapshot_dir)
