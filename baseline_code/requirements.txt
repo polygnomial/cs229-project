@@ -1,6 +1,4 @@
 torch
-pandas
-boto3
 modal
 xgboost
 torch
@@ -9,3 +7,5 @@ tqdm
 matplotlib
 scikit-learn
 seaborn
+transformers
+segmentation-models-pytorch
