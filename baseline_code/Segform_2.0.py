@@ -41,7 +41,7 @@ def get_arguments():
     parser.add_argument("--model_type", type=str, default='segformer', 
                       choices=['unet', 'deeplabv3plus', 'pspnet', 'fpn', 'customcnn', 'encoderfeature', 'segformer'],
                       help="Type of segmentation model to use.")
-    parser.add_argument("--encoder_name", type=str, default='resnet50',
+    parser.add_argument("--encoder_name", type=str, default='mit_b0',
                       choices=['resnet50', 'resnet101', 'efficientnet-b4', 'timm-regnety_016', 'resnext50_32x4d', 'mit_b0'],
                       help="Name of encoder backbone to use.")
                       
