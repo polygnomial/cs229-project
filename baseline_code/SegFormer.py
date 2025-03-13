@@ -108,7 +108,7 @@ modename = ['all_bands',                        #0
 def get_model(args):
     # this is the huggingface segformer
     if args.model_type == 'segformer':
-        model = SegformerForSemanticSegmentation.from_pretrained("nvidia/mit-b0")
+        model = SegformerForSemanticSegmentation.from_pretrained("nvidia/mit-b0", num_channels=3, num_labels=args.num_classes)
         return model
     else:
         # this is a combined U-Net structure but with segformer encoder
@@ -208,9 +208,9 @@ def main():
             {"params": model.encoder.parameters(), "lr": 1e-5},
             {"params": model.custom_layers.parameters(), "lr": args.learning_rate}
         ], weight_decay=args.weight_decay)
-    elif args.model_type == 'segformer':
-        for param in model.segformer.encoder.parameters():
-            param.requires_grad = False  # Freeze encoder
+    # elif args.model_type == 'segformer':
+    #     for param in model.segformer.encoder.parameters():
+    #         param.requires_grad = False  # Freeze encoder
 
     else:
         # For pretrained models, freeze encoder
@@ -333,8 +333,9 @@ def main():
                 image = image.float().to(device)
                 
                 # Manually apply normalization
-                for i in range(image.size(0)):
-                    image[i] = normalize(image[i])
+                if args.mode == '4' or args.mode == '2':
+                    for i in range(image.size(0)):
+                        image[i] = normalize(image[i])
                 
                 with torch.no_grad():
                     if args.model_type == 'encoderfeature':
