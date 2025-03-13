@@ -1,0 +1,11 @@
+torch
+pandas
+boto3
+modal
+xgboost
+torch
+torchvision
+tqdm
+matplotlib
+scikit-learn
+seaborn

@@ -1,0 +1,7 @@
+name = "my-r2-upload"
+compatibility_date = "2024-03-10"
+
+[[r2_buckets]]
+binding = "SEN2FIRE"
+bucket_name = "sen2fire"
+preview_bucket_name = "sen2fire"  # Optional
