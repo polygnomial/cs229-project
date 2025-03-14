@@ -49,6 +49,7 @@ def get_arguments(args=None):
 @app.function(
     image=image,
     gpu="A100-40GB",
+    timeout=10000,
     volumes={"/data": modal.Volume.from_name("dataset-volume")}
 )
 def train_model(*arglist):

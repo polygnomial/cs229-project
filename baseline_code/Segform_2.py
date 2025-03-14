@@ -402,6 +402,7 @@ def main(args):
                 print('Save Model')   
                 f.write('Save Model\n')   
                 model_name = 'best_model.pth'
+                print(f"saving model to {os.path.join(snapshot_dir, model_name)}")
                 torch.save(model.state_dict(), os.path.join(snapshot_dir, model_name))
     
     saved_state_dict = torch.load(os.path.join(snapshot_dir, model_name))  

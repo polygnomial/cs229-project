@@ -180,8 +180,8 @@ def eval_image(y_true, y_pred, n_class):
     n_valid_sample = len(y_true)
     return TP, FP, TN, FN, n_valid_sample
 
-def main():
-    args = get_arguments()
+def main(args):
+    
     os.makedirs(args.snapshot_dir, exist_ok=True)
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
