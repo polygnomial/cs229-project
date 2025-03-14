@@ -662,4 +662,5 @@ def main(args):
     saved_state_dict = torch.load(os.path.join(snapshot_dir, model_name))  
     np.savez(snapshot_dir+'Precision_'+str(int(P * 10000))+'Recall_'+str(int(R * 10000))+'F1_'+str(int(F1[1] * 10000))+'_hist.npz', hist=hist)    
 if __name__ == '__main__':
-    main()
+    args = get_arguments()
+    main(args)
