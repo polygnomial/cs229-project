@@ -190,11 +190,14 @@ def main(args):
     print("Loading datasets...")
     train_dataset = Sen2FireDataSet(args.data_dir, args.train_list, mode=None)
     val_dataset = Sen2FireDataSet(args.data_dir, args.val_list, mode=None)
-    
+    test_dataset = Sen2FireDataSet(args.data_dir, args.test_list, mode=None)
+
     train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True,
                               num_workers=os.cpu_count(), pin_memory=True)
     val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False,
                             num_workers=os.cpu_count(), pin_memory=True)
+    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False,
+                             num_workers=os.cpu_count(), pin_memory=True)
     
     # Count the total number of positive and negative samples for imbalance handling
     total_pos, total_neg = 0, 0
@@ -382,6 +385,74 @@ def main(args):
     print(f"===> fire IoU: {IoU_fire*100:.2f}")
     print(f"===> fire F1: {F1_fire*100:.2f}")
     print(f"===> mIoU: {mIoU*100:.2f} mean F1: {mF1*100:.2f} OA: {OA*100:.2f}")
+
+    print('Testing..........')  
+
+    TP_all = np.zeros((args.num_classes, 1))
+    FP_all = np.zeros((args.num_classes, 1))
+    TN_all = np.zeros((args.num_classes, 1))
+    FN_all = np.zeros((args.num_classes, 1))
+    n_valid_sample_all = 0
+    F1 = np.zeros((args.num_classes, 1))
+    IoU = np.zeros((args.num_classes, 1))
+
+    test_loader = DataLoader(
+                    Sen2FireDataSet(args.data_dir, args.test_list, mode=args.mode),
+                    batch_size=1, shuffle=False, pin_memory=True)
+
+    # ---- For XGBoost-based evaluation ----
+    # Process each test patch the same way as in training/validation
+    X_test_list, y_test_list = [], []
+    for batch in tqdm(test_loader, desc="Test Patches"):
+        image, label, _, _ = batch  
+        image = image.squeeze(0).numpy()  
+        label = label.squeeze(0).numpy()    
+        # Instead of adding extra features via a non-existent function,
+        # use the same feature extraction as in training.
+        X, y = extract_features(image, label)
+        X_test_list.append(X)
+        y_test_list.append(y)
+    X_test = np.concatenate(X_test_list, axis=0)
+    y_test = np.concatenate(y_test_list, axis=0)
+
+    # Apply the same normalization and feature transformation as in training
+    X_test = scaler.transform(X_test)
+    if args.dim_reduction_method == 'pca':
+        X_test = gpu_pca_transform(X_test, args.latent_dim)
+    elif args.dim_reduction_method == 'autoencoder':
+        with torch.no_grad():
+            X_tensor = torch.from_numpy(X_test).float().cuda()
+            X_test = autoencoder.encoder(X_tensor).cpu().numpy()
+
+    dtest = xgb.DMatrix(X_test, label=y_test)
+    # ===== FIX: Use the trained booster instead of undefined 'bst' =====
+    y_pred_prob = booster.predict(dtest)
+    y_pred = (y_pred_prob > 0.5).astype(np.uint8)
+
+    # Evaluate pixel-wise using the provided evaluation function
+    TP, FP, TN, FN, n_valid_sample = eval_image(y_pred, y_test, args.num_classes)
+    TP_all += TP
+    FP_all += FP
+    TN_all += TN
+    FN_all += FN
+    n_valid_sample_all += n_valid_sample
+
+    OA = np.sum(TP_all) * 1.0 / n_valid_sample_all
+    for i in range(args.num_classes):
+        P = TP_all[i] * 1.0 / (TP_all[i] + FP_all[i] + epsilon)
+        R = TP_all[i] * 1.0 / (TP_all[i] + FN_all[i] + epsilon)
+        F1[i] = 2.0 * P * R / (P + R + epsilon)
+        IoU[i] = TP_all[i] * 1.0 / (TP_all[i] + FP_all[i] + FN_all[i] + epsilon)
+        
+        if i == 1:
+            print('===>' + name_classes[i] + ' Precision: %.2f' % (P * 100))
+            print('===>' + name_classes[i] + ' Recall: %.2f' % (R * 100))            
+            print('===>' + name_classes[i] + ' IoU: %.2f' % (IoU[i] * 100))              
+            print('===>' + name_classes[i] + ' F1: %.2f' % (F1[i] * 100))
+            
+    mF1 = np.mean(F1)   
+    mIoU = np.mean(IoU)           
+    print('===> mIoU: %.2f mean F1: %.2f OA: %.2f' % (mIoU * 100, mF1 * 100, OA * 100))
 
 if __name__ == '__main__':
     main()

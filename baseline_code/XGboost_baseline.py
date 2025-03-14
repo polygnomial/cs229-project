@@ -15,6 +15,8 @@ from sklearn.decomposition import PCA
 from model.Autoencoder import Autoencoder
 import torch
 from torch import nn
+import torchvision.transforms as transforms
+from utils.tools import *
 
 # Define class labels and a small constant to avoid division by zero
 name_classes = np.array(['non-fire', 'fire'], dtype=str)
@@ -57,6 +59,8 @@ def main(args):
     
     # Ensure output directory exists
     os.makedirs(args.snapshot_dir, exist_ok=True)
+
+    f = open(args.snapshot_dir+'Training_log.txt', 'w')
     
     # Load training and validation datasets
     print("Loading datasets...")
@@ -168,7 +172,90 @@ def main(args):
     y_pred_prob = bst.predict(dval)
     y_pred = (y_pred_prob > 0.5).astype(np.uint8)
     
-    print(f"Validation Accuracy:  {accuracy_score(y_val, y_pred):.4f}")
+    print('Testing..........')  
+    f.write('Testing..........\n')  
+
+    # ===== FIX: Remove the erroneous xgb.eval() call =====
+    # xgb.eval()   <-- This line is removed
+
+    TP_all = np.zeros((args.num_classes, 1))
+    FP_all = np.zeros((args.num_classes, 1))
+    TN_all = np.zeros((args.num_classes, 1))
+    FN_all = np.zeros((args.num_classes, 1))
+    n_valid_sample_all = 0
+    F1 = np.zeros((args.num_classes, 1))
+    IoU = np.zeros((args.num_classes, 1))
+
+    test_loader = data.DataLoader(
+                    Sen2FireDataSet(args.data_dir, args.test_list, mode=args.mode),
+                    batch_size=1, shuffle=False, pin_memory=True)
+
+    # ---- For XGBoost-based evaluation ----
+    # Process each test patch the same way as in training/validation
+    X_test_list, y_test_list = [], []
+    for batch in tqdm(test_loader, desc="Test Patches"):
+        image, label, _, _ = batch  
+        image = image.squeeze(0).numpy()  
+        label = label.squeeze(0).numpy()    
+        if image.shape[0] >= 12:
+            extra_features = compute_vegetation_indices(image)
+            image = np.vstack([image, extra_features])
+        X, y = extract_features_labels(image, label)
+        X_test_list.append(X)
+        y_test_list.append(y)
+    X_test = np.concatenate(X_test_list, axis=0)
+    y_test = np.concatenate(y_test_list, axis=0)
+    
+    # Apply the same normalization and feature transformation as in training
+    X_test = scaler.transform(X_test)
+    if args.format == 'PCA':
+        X_test = pca.transform(X_test)
+    elif args.format == 'Autoencoder':
+        X_test = autoencoder.encode(X_test)
+    
+    dtest = xgb.DMatrix(X_test, label=y_test)
+    y_pred_prob = bst.predict(dtest)
+    y_pred = (y_pred_prob > 0.5).astype(np.uint8)
+    
+    # Evaluate pixel-wise using the provided evaluation function
+    TP, FP, TN, FN, n_valid_sample = eval_image(y_pred, y_test, args.num_classes)
+    TP_all += TP
+    FP_all += FP
+    TN_all += TN
+    FN_all += FN
+    n_valid_sample_all += n_valid_sample
+
+
+
+    OA = np.sum(TP_all)*1.0 / n_valid_sample_all
+    for i in range(args.num_classes):
+        P = TP_all[i]*1.0 / (TP_all[i] + FP_all[i] + epsilon)
+        R = TP_all[i]*1.0 / (TP_all[i] + FN_all[i] + epsilon)
+        F1[i] = 2.0 * P * R / (P + R + epsilon)
+        IoU[i] = TP_all[i]*1.0 / (TP_all[i] + FP_all[i] + FN_all[i] + epsilon)
+        
+        if i == 1:
+            print('===>' + name_classes[i] + ' Precision: %.2f' % (P * 100))
+            print('===>' + name_classes[i] + ' Recall: %.2f' % (R * 100))            
+            print('===>' + name_classes[i] + ' IoU: %.2f' % (IoU[i] * 100))              
+            print('===>' + name_classes[i] + ' F1: %.2f' % (F1[i] * 100))
+            f.write('===>' + name_classes[i] + ' Precision: %.2f\n' % (P * 100))
+            f.write('===>' + name_classes[i] + ' Recall: %.2f\n' % (R * 100))
+            f.write('===>' + name_classes[i] + ' IoU: %.2f\n' % (IoU[i] * 100))
+            f.write('===>' + name_classes[i] + ' F1: %.2f\n' % (F1[i] * 100))
+            
+    mF1 = np.mean(F1)   
+    mIoU = np.mean(IoU)           
+    print('===> mIoU: %.2f mean F1: %.2f OA: %.2f' % (mIoU*100, mF1*100, OA*100))
+    f.write('===> mIoU: %.2f mean F1: %.2f OA: %.2f\n' % (mIoU*100, mF1*100, OA*100))
+    f.close()
+
+    # ===== Optionally =====
+    # If you need to load a saved state dict or save history, adjust the variables accordingly.
+    # For example, if you have a model name and history (hist) defined:
+    # saved_state_dict = torch.load(os.path.join(args.snapshot_dir, 'model_name.pth'))
+    # np.savez(os.path.join(args.snapshot_dir, 'Precision_'+str(int(P * 10000))+'Recall_'+str(int(R * 10000))+
+    #          'F1_'+str(int(F1[1] * 10000))+'_hist.npz'), hist=hist)
     
 if __name__ == '__main__':
     main()
